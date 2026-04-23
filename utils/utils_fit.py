@@ -38,8 +38,11 @@ def fit_one_epoch(model_train, model, ema, yolo_loss, loss_history, eval_callbac
         else:
             from torch.cuda.amp import autocast
             with autocast():
-                outputs         = model_train(images)
-                loss_value      = yolo_loss(outputs, targets, images)
+                outputs         = model_train(hazy_and_clear)
+                detect_outputs  = [outputs[0], outputs[1], outputs[2]]
+                loss_detection  = yolo_loss(detect_outputs, targets, images)
+                loss_dehazy     = criterion(outputs[3], clean)
+                loss_value      = 1 * loss_detection + 0.1 * loss_dehazy
             scaler.scale(loss_value).backward()
             scaler.step(optimizer)
             scaler.update()

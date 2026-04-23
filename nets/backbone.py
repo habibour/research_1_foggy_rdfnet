@@ -86,7 +86,10 @@ class Backbone(nn.Module):
 
     def forward(self, x):
         if self.training:
-            x, clear_x = x.split((8, 8), dim=0)  
+            if x.shape[0] % 2 != 0:
+                raise ValueError(f'Backbone expected an even batch size, got {x.shape[0]}')
+            half_batch = x.shape[0] // 2
+            x, clear_x = x.split((half_batch, half_batch), dim=0)
         x = self.stem(x)
         x = self.dark2(x)
         f1 = x
