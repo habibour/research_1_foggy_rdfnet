@@ -1,6 +1,50 @@
 import numpy as np
 import torch
-from torchvision.ops import nms
+
+try:
+    from torchvision.ops import nms as torchvision_nms
+except Exception:
+    torchvision_nms = None
+
+
+def nms(boxes, scores, iou_threshold):
+    if torchvision_nms is not None:
+        return torchvision_nms(boxes, scores, iou_threshold)
+
+    # Fallback NMS when torchvision custom ops are unavailable.
+    if boxes.numel() == 0:
+        return torch.empty((0,), dtype=torch.long, device=boxes.device)
+
+    x1 = boxes[:, 0]
+    y1 = boxes[:, 1]
+    x2 = boxes[:, 2]
+    y2 = boxes[:, 3]
+
+    areas = (x2 - x1).clamp(min=0) * (y2 - y1).clamp(min=0)
+    order = scores.argsort(descending=True)
+    keep = []
+
+    while order.numel() > 0:
+        i = order[0]
+        keep.append(i)
+        if order.numel() == 1:
+            break
+
+        rest = order[1:]
+        xx1 = torch.maximum(x1[i], x1[rest])
+        yy1 = torch.maximum(y1[i], y1[rest])
+        xx2 = torch.minimum(x2[i], x2[rest])
+        yy2 = torch.minimum(y2[i], y2[rest])
+
+        w = (xx2 - xx1).clamp(min=0)
+        h = (yy2 - yy1).clamp(min=0)
+        inter = w * h
+        union = areas[i] + areas[rest] - inter + 1e-16
+        iou = inter / union
+
+        order = rest[iou <= iou_threshold]
+
+    return torch.stack(keep)
 
 class DecodeBox():
     def __init__(self, anchors, num_classes, input_shape, anchors_mask = [[6,7,8], [3,4,5], [0,1,2]]):
